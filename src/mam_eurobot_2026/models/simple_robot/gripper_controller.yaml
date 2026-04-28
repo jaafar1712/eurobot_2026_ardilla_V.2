@@ -1,0 +1,41 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+    
+    # Use namespaced parameters
+    use_sim_time: true
+    
+    # Controller list
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    
+    gripper_controller:
+      type: position_controllers/JointGroupPositionController
+
+# Joint State Broadcaster Configuration
+joint_state_broadcaster:
+  ros__parameters:
+    use_sim_time: true
+
+# Gripper Controller Configuration
+gripper_controller:
+  ros__parameters:
+    use_sim_time: true
+    
+    joints:
+      - left_finger_joint
+      - right_finger_joint
+    
+    command_interfaces:
+      - position
+    
+    state_interfaces:
+      - position
+      - velocity
+    
+    # Allow individual control or synchronized control
+    allow_partial_joints_goal: false
+    
+    # State publishing
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0

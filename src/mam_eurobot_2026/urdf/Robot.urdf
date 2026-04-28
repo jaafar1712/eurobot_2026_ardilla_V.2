@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="mam_eurobot_2026">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.0023872 0 0.0033906"
+        rpy="0 0 0" />
+      <mass
+        value="0.1672" />
+      <inertia
+        ixx="0.00039624"
+        ixy="9.104E-21"
+        ixz="4.4159E-06"
+        iyy="0.00045354"
+        iyz="5.7791E-21"
+        izz="0.00084709" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.6902 0.27451 0.086275 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="Left_Wheel">
+    <inertial>
+      <origin
+        xyz="0.0175 0.058444 0.0085"
+        rpy="0 0 0" />
+      <mass
+        value="0.063466" />
+      <inertia
+        ixx="1.9045E-05"
+        ixy="-3.4818E-21"
+        ixz="2.1452E-21"
+        iyy="3.3432E-05"
+        iyz="7.4879E-22"
+        izz="1.9045E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Left_Wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.19216 0.20392 0.20392 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Left_Wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_LW"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Left_Wheel" />
+    <axis
+      xyz="0 1 0" />
+  </joint>
+  <link
+    name="Right_Wheel">
+    <inertial>
+      <origin
+        xyz="0.0175 -0.058444 0.0085"
+        rpy="0 0 0" />
+      <mass
+        value="0.063466" />
+      <inertia
+        ixx="1.9045E-05"
+        ixy="-1.6992E-21"
+        ixz="1.5486E-21"
+        iyy="3.3432E-05"
+        iyz="-4.2269E-22"
+        izz="1.9045E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Right_Wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.19216 0.20392 0.20392 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Right_Wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_RW"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Right_Wheel" />
+    <axis
+      xyz="0 1 0" />
+  </joint>
+  <link
+    name="Caster_Wheel">
+    <inertial>
+      <origin
+        xyz="-0.066545 0.00089881 -0.005099"
+        rpy="0 0 0" />
+      <mass
+        value="1.8842E-05" />
+      <inertia
+        ixx="2.6356E-09"
+        ixy="9.9985E-11"
+        ixz="-1.6273E-14"
+        iyy="2.7233E-09"
+        iyz="-2.4908E-14"
+        izz="2.9946E-09" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Caster_Wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.76078 0.69804 0.6902 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Caster_Wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_CW"
+    type="continuous">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Caster_Wheel" />
+    <axis
+      xyz="0 0 -1" />
+  </joint>
+  <link
+    name="Gripper">
+    <inertial>
+      <origin
+        xyz="-0.117150939235393 0.000470931920121931 -0.00299999996362621"
+        rpy="0 0 0" />
+      <mass
+        value="0.00864824516024566" />
+      <inertia
+        ixx="1.28898806748501E-06"
+        ixy="-8.80178977853104E-08"
+        ixz="-1.63729251610549E-15"
+        iyy="2.80748466696067E-06"
+        iyz="-4.75196868109757E-15"
+        izz="4.08352346052307E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Gripper.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Gripper.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_Gripper"
+    type="fixed">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Gripper" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="Gripper_LL">
+    <inertial>
+      <origin
+        xyz="-0.12346 0.040891 -0.0075"
+        rpy="0 0 0" />
+      <mass
+        value="0.0032583" />
+      <inertia
+        ixx="2.9187E-06"
+        ixy="-3.2235E-08"
+        ixz="7.0258E-23"
+        iyy="7.4457E-08"
+        iyz="-1.0842E-22"
+        izz="2.9882E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Gripper_LL.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Gripper_LL.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_LL"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Gripper" />
+    <child
+      link="Gripper_LL" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Left_Finger">
+    <inertial>
+      <origin
+        xyz="-0.14886 0.093113 -0.003"
+        rpy="0 0 0" />
+      <mass
+        value="0.0030344" />
+      <inertia
+        ixx="4.5449E-08"
+        ixy="-1.3836E-07"
+        ixz="-2.2283E-23"
+        iyy="1.1648E-06"
+        iyz="-8.6546E-25"
+        izz="1.2057E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Left_Finger.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Left_Finger.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_LF"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Gripper_LL" />
+    <child
+      link="Left_Finger" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Gripper_RL">
+    <inertial>
+      <origin
+        xyz="-0.12264 -0.039624 -0.0075"
+        rpy="0 0 0" />
+      <mass
+        value="0.0034307" />
+      <inertia
+        ixx="3.0555E-06"
+        ixy="5.2915E-08"
+        ixz="-1.5016E-23"
+        iyy="8.8619E-08"
+        iyz="-5.6484E-22"
+        izz="3.1389E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Gripper_RL.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Gripper_RL.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_RL"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Gripper" />
+    <child
+      link="Gripper_RL" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Right_Finger">
+    <inertial>
+      <origin
+        xyz="-0.14735 -0.093226 -0.003"
+        rpy="0 0 0" />
+      <mass
+        value="0.0030344" />
+      <inertia
+        ixx="4.5452E-08"
+        ixy="1.3837E-07"
+        ixz="9.0144E-24"
+        iyy="1.1648E-06"
+        iyz="1.9946E-24"
+        izz="1.2057E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Right_Finger.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Right_Finger.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_RF"
+    type="prismatic">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Gripper_RL" />
+    <child
+      link="Right_Finger" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Surround">
+    <inertial>
+      <origin
+        xyz="0.0015244 5.5511E-16 0.056392"
+        rpy="0 0 0" />
+      <mass
+        value="0.16147" />
+      <inertia
+        ixx="0.00085452"
+        ixy="-7.728E-19"
+        ixz="6.3021E-06"
+        iyy="0.00099879"
+        iyz="-7.7039E-19"
+        izz="0.0015666" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Surround.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.8 0.30196 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Surround.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_Surround"
+    type="fixed">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Surround" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="Top_Chasis">
+    <inertial>
+      <origin
+        xyz="0.0032523 0 0.10913"
+        rpy="0 0 0" />
+      <mass
+        value="0.18716" />
+      <inertia
+        ixx="0.00047175"
+        ixy="-5.7935E-22"
+        ixz="-1.602E-06"
+        iyy="0.00047026"
+        iyz="-9.9717E-22"
+        izz="0.00094062" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Top_Chasis.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.078431 0.21961 0.6902 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://mam_eurobot_2026/meshes/Top_Chasis.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Joint_TB"
+    type="fixed">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Top_Chasis" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

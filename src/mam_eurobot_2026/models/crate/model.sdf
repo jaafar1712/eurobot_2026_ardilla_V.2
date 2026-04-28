@@ -1,0 +1,183 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="crate_blue">
+    <static>false</static>
+    <link name="link">
+      <inertial>
+        <mass>0.17</mass>
+        <inertia>
+          <ixx>0.000047</ixx>
+          <iyy>0.000336</iyy>
+          <izz>0.000361</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+
+      <!-- Single collision box for the entire crate -->
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>0.15 0.05 0.03</size>
+          </box>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+          <bounce/>
+          <contact/>
+        </surface>
+      </collision>
+
+      <!-- ============================================================ -->
+      <!-- TOP FACE: Blue plastic base (NO texture here)                -->
+      <!-- ============================================================ -->
+      <visual name="visual_top_base">
+        <pose>0 0 0.015 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.15 0.05 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.0 0.3 0.8 1</ambient>
+          <diffuse>0.0 0.3 0.8 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+      <!-- ArUco marker ID 36 (40mm × 40mm) centered on TOP face -->
+      <visual name="aruco_top">
+        <pose>0 0 0.0155 0 0 0</pose>  <!-- 0.1mm above blue surface -->
+        <geometry>
+          <box>
+            <size>0.04 0.04 0.0001</size>  <!-- 40mm × 40mm × 0.1mm -->
+          </box>
+        </geometry>
+        <material>
+          <!-- WHITE material = no color tinting -->
+          <ambient>1.0 1.0 1.0 1.0</ambient>
+          <diffuse>1.0 1.0 1.0 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1.0</specular>
+          <emissive>0.0 0.0 0.0 1.0</emissive>
+          
+          <pbr>
+            <metal>
+              <albedo_map>model://crate/materials/textures/aruco_blue_36.png</albedo_map>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+
+      <!-- ============================================================ -->
+      <!-- BOTTOM FACE: Yellow plastic base (NO texture here)           -->
+      <!-- ============================================================ -->
+      <visual name="visual_bottom_base">
+        <pose>0 0 -0.015 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.15 0.05 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.95 0.7 0.0 1</ambient>
+          <diffuse>0.95 0.7 0.0 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+      <!-- ArUco marker ID 47 (40mm × 40mm) centered on BOTTOM face -->
+      <visual name="aruco_bottom">
+        <pose>0 0 -0.0155 0 0 0</pose>  <!-- 0.1mm below yellow surface -->
+        <geometry>
+          <box>
+            <size>0.04 0.04 0.0001</size>  <!-- 40mm × 40mm × 0.1mm -->
+          </box>
+        </geometry>
+        <material>
+          <!-- WHITE material = no color tinting -->
+          <ambient>1.0 1.0 1.0 1.0</ambient>
+          <diffuse>1.0 1.0 1.0 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1.0</specular>
+          <emissive>0.0 0.0 0.0 1.0</emissive>
+          
+          <pbr>
+            <metal>
+              <albedo_map>model://crate/materials/textures/aruco_yellow_47.png</albedo_map>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+
+      <!-- ============================================================ -->
+      <!-- SIDE FACES: Natural wood (unchanged)                         -->
+      <!-- ============================================================ -->
+      
+      <!-- FRONT FACE: Natural wood (no color) -->
+      <visual name="visual_front">
+        <pose>0 0.0255 0 1.5708 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.15 0.03 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.7 0.6 0.4 1</ambient>
+          <diffuse>0.7 0.6 0.4 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+      <!-- BACK FACE: Natural wood (no color) -->
+      <visual name="visual_back">
+        <pose>0 -0.0255 0 1.5708 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.15 0.03 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.7 0.6 0.4 1</ambient>
+          <diffuse>0.7 0.6 0.4 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+      <!-- RIGHT FACE: Natural wood (no color) -->
+      <visual name="visual_right">
+        <pose>0.0755 0 0 1.5708 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>0.05 0.03 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.7 0.6 0.4 1</ambient>
+          <diffuse>0.7 0.6 0.4 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+      <!-- LEFT FACE: Natural wood (no color) -->
+      <visual name="visual_left">
+        <pose>-0.0755 0 0 1.5708 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>0.05 0.03 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.7 0.6 0.4 1</ambient>
+          <diffuse>0.7 0.6 0.4 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>

@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<robot>
+
+  <!-- ========================================= -->
+  <!-- Materials/Colors for Better Visualization -->
+  <!-- ========================================= -->
+  
+  <gazebo reference="base_link">
+    <material>Gazebo/Orange</material>
+  </gazebo>
+  
+  <gazebo reference="Left_Wheel">
+    <material>Gazebo/DarkGrey</material>
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+    <minDepth>0.001</minDepth>
+  </gazebo>
+  
+  <gazebo reference="Right_Wheel">
+    <material>Gazebo/DarkGrey</material>
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+    <minDepth>0.001</minDepth>
+  </gazebo>
+  
+  <gazebo reference="Caster_Wheel">
+    <material>Gazebo/Grey</material>
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+    <minDepth>0.001</minDepth>
+  </gazebo>
+  
+  <gazebo reference="Surround">
+    <material>Gazebo/Orange</material>
+  </gazebo>
+  
+  <gazebo reference="Top_Chasis">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+  
+  <gazebo reference="Gripper">
+    <material>Gazebo/White</material>
+  </gazebo>
+
+
+  <!-- ========================================= -->
+  <!-- Differential Drive Controller Plugin -->
+  <!-- ========================================= -->
+  
+  <gazebo>
+    <plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
+      
+      <!-- Update rate in Hz -->
+      <update_rate>50</update_rate>
+      
+      <!-- Wheel joints from YOUR URDF -->
+      <left_joint>Joint_LW</left_joint>
+      <right_joint>Joint_RW</right_joint>
+      
+      <!-- Wheel separation (distance between wheels) -->
+      <wheel_separation>0.117</wheel_separation>
+      
+      <!-- Wheel diameter - ESTIMATE, you may need to measure -->
+      <!-- Based on typical Eurobot wheels, assuming ~68mm diameter -->
+      <wheel_diameter>0.068</wheel_diameter>
+      
+      <!-- Maximum torque -->
+      <max_wheel_torque>10</max_wheel_torque>
+      <max_wheel_acceleration>1.0</max_wheel_acceleration>
+      
+      <!-- ROS topics -->
+      <command_topic>cmd_vel</command_topic>
+      <odometry_topic>odom</odometry_topic>
+      
+      <!-- Frame IDs -->
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_link</robot_base_frame>
+      
+      <!-- Publishing options -->
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <publish_wheel_tf>true</publish_wheel_tf>
+      
+      <!-- Covariance -->
+      <odometry_source>world</odometry_source>
+      
+    </plugin>
+  </gazebo>
+
+</robot>

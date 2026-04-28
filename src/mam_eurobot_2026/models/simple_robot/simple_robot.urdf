@@ -1,0 +1,127 @@
+<?xml version="1.0"?>
+<robot name="simple_robot">
+
+  <!-- ====================== BASE LINK ====================== -->
+  <link name="base_link">
+    <inertial>
+      <mass value="3"/>
+      <inertia ixx="0.0186" ixy="0" ixz="0" iyy="0.0228" iyz="0" izz="0.0391"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.28 0.25 0.07"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0.2 0.2 0.8 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.28 0.25 0.07"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="base_footprint"/>
+  <joint name="base_to_footprint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_footprint"/>
+  </joint>
+
+  <!-- ====================== WHEELS ====================== -->
+  <link name="left_wheel">
+    <inertial>
+      <mass value="0.3"/>
+      <inertia ixx="0.00024" ixy="0" ixz="0" iyy="0.00024" iyz="0" izz="0.00048"/>
+    </inertial>
+  </link>
+  <link name="right_wheel">
+    <inertial>
+      <mass value="0.3"/>
+      <inertia ixx="0.00024" ixy="0" ixz="0" iyy="0.00024" iyz="0" izz="0.00048"/>
+    </inertial>
+  </link>
+
+  <joint name="left_wheel_joint" type="revolute">
+  <parent link="base_link"/>
+  <child link="left_wheel"/>
+  <axis xyz="0 0 1"/>
+  <limit lower="-10000000000000000" upper="10000000000000000" effort="10" velocity="10"/>
+</joint>
+
+<joint name="right_wheel_joint" type="revolute">
+  <parent link="base_link"/>
+  <child link="right_wheel"/>
+  <axis xyz="0 0 1"/>
+  <limit lower="-10000000000000000" upper="10000000000000000" effort="10" velocity="10"/>
+</joint>
+
+  <!-- ====================== CASTER ====================== -->
+  <link name="caster"/>
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster"/>
+  </joint>
+
+  <!-- ====================== GRIPPER ====================== -->
+  <link name="gripper_base"/>
+  <joint name="gripper_base_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="gripper_base"/>
+  </joint>
+
+  <link name="left_finger"/>
+  <joint name="left_finger_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="left_finger"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.04" upper="0.04" effort="40" velocity="0.5"/>
+  </joint>
+
+  <link name="right_finger"/>
+  <joint name="right_finger_joint" type="prismatic">
+    <parent link="gripper_base"/>
+    <child link="right_finger"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-0.04" upper="0.04" effort="40" velocity="0.5"/>
+  </joint>
+
+  <!-- ====================== LIDAR & CAMERA ====================== -->
+  <link name="lidar_link"/>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+  </joint>
+
+  <link name="camera_link"/>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+  </joint>
+
+  <!-- ====================== ROS2 CONTROL ====================== -->
+  <ros2_control name="GripperSystem" type="system">
+    <hardware>
+      <plugin>ign_ros2_control/IgnitionSystem</plugin>
+    </hardware>
+    <joint name="left_finger_joint">
+      <command_interface name="position">
+        <param name="min">-0.04</param>
+        <param name="max">0.04</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+    <joint name="right_finger_joint">
+      <command_interface name="position">
+        <param name="min">-0.04</param>
+        <param name="max">0.04</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+  </ros2_control>
+
+</robot>

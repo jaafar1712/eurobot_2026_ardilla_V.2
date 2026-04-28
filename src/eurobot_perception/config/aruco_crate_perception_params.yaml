@@ -1,0 +1,100 @@
+# ArUco Crate Perception - ROS2 Parameters Configuration
+# Eurobot 2026 "Winter is Coming"
+
+aruco_crate_perception:
+  ros__parameters:
+    # ==================== CAMERA CONFIGURATION ====================
+    
+    # Camera topics (adjust to match your robot)
+    camera_topic: "/camera"
+    camera_info_topic: "/camera_info"
+    
+    # ==================== TEAM CONFIGURATION ====================
+    
+    # Your team color: "blue" or "yellow"
+    team_color: "yellow"
+    
+    # ==================== ARUCO PARAMETERS ====================
+    
+    # ArUco dictionary type
+    # IMPORTANT: Verify this with your national organizer!
+    # Common options:
+    #   - DICT_4X4_50 (recommended for Eurobot)
+    #   - DICT_4X4_100
+    #   - DICT_6X6_250
+    aruco_dict: "DICT_4X4_50"
+    
+    # Physical size of ArUco marker (meters)
+    # Eurobot 2026 rules specify 40mm markers
+    marker_size: 0.040
+    
+    # ==================== DETECTION THRESHOLDS ====================
+    
+    # Minimum confidence to accept detection (0.0 to 1.0)
+    # Lower = more detections, but more false positives
+    # Higher = fewer false positives, but might miss some crates
+    # MUST MATCH your mission controller threshold!
+    min_confidence: 0.35
+    
+    # Maximum distance to consider valid detection (meters)
+    # Ignore very far crates to reduce noise
+    max_detection_distance: 3.0
+    
+    # ==================== CRATE DIMENSIONS ====================
+    
+    # Physical dimensions from Eurobot 2026 rules
+    # 150mm x 50mm x 30mm wooden blocks
+    crate_length: 0.15   # 150mm - longest dimension
+    crate_width: 0.05    # 50mm - medium dimension  
+    crate_height: 0.03   # 30mm - shortest dimension
+    
+    # ==================== TF FRAME IDS ====================
+    
+    # Camera frame (where camera is mounted)
+    camera_frame: "camera_link"
+    
+    # Robot base frame
+    base_frame: "base_link"
+    
+    # Global reference frame
+    # Use "odom" for odometry-based navigation
+    # Use "map" if you have SLAM running
+    global_frame: "odom"
+    
+    # ==================== VISUALIZATION ====================
+    
+    # Enable debug visualization on /crate/image_debug topic
+    # Shows detected markers with overlays
+    # Disable for better performance in competition
+    visualize: true
+
+
+# ==================== ALTERNATIVE CONFIGURATIONS ====================
+
+# --- Configuration for Blue Team ---
+# aruco_crate_perception:
+#   ros__parameters:
+#     team_color: "blue"
+#     # ... rest same as above
+
+# --- Configuration for Different ArUco Dictionary ---
+# aruco_crate_perception:
+#   ros__parameters:
+#     aruco_dict: "DICT_6X6_250"
+#     # ... rest same as above
+
+# --- Performance-Optimized Configuration (Competition Mode) ---
+# aruco_crate_perception:
+#   ros__parameters:
+#     visualize: false  # Disable visualization to save CPU
+#     min_confidence: 0.45  # Higher threshold for reliability
+#     max_detection_distance: 2.0  # Focus on nearby crates
+#     # ... rest same as above
+
+# --- Debug/Development Configuration ---
+# aruco_crate_perception:
+#   ros__parameters:
+#     visualize: true
+#     min_confidence: 0.25  # Lower threshold to see all detections
+#     max_detection_distance: 5.0  # See all crates
+#     # ... rest same as above

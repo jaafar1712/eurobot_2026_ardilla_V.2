@@ -1,0 +1,393 @@
+<sdf version='1.9'>
+  <world name='eurobot_2026_arena'>
+    <gravity>0 0 -9.81</gravity>
+    <physics type='ode'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <plugin
+    filename="libignition-gazebo-physics-system.so"
+    name="ignition::gazebo::systems::Physics">
+    </plugin>
+    <plugin
+    filename="libignition-gazebo-user-commands-system.so"
+    name="ignition::gazebo::systems::UserCommands">
+    </plugin>
+    <plugin
+    filename="libignition-gazebo-scene-broadcaster-system.so"
+    name="ignition::gazebo::systems::SceneBroadcaster">
+    </plugin>
+
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <model name='ground_plane'>
+      <static>true</static>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction><ode/></friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.2 0.2 0.2 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>1</iyy><iyz>0</iyz><izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <pose>0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name="arena_walls">
+  <static>true</static>
+
+  <!-- North wall -->
+  <link name="north_wall">
+    <pose>0 1.5 0.125 0 0 0</pose>
+    <collision name="collision">
+      <geometry>
+        <box>
+          <size>3.0 0.05 0.25</size>
+        </box>
+      </geometry>
+    </collision>
+    <visual name="visual">
+      <geometry>
+        <box>
+          <size>3.0 0.05 0.25</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>0.5 0.5 0.5 1</ambient>
+        <diffuse>0.5 0.5 0.5 1</diffuse>
+      </material>
+    </visual>
+  </link>
+
+  <!-- South wall -->
+  <link name="south_wall">
+    <pose>0 -1.5 0.125 0 0 0</pose>
+    <collision name="collision">
+      <geometry>
+        <box>
+          <size>3.0 0.05 0.25</size>
+        </box>
+      </geometry>
+    </collision>
+    <visual name="visual">
+      <geometry>
+        <box>
+          <size>3.0 0.05 0.25</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>0.5 0.5 0.5 1</ambient>
+        <diffuse>0.5 0.5 0.5 1</diffuse>
+      </material>
+    </visual>
+  </link>
+
+  <!-- East wall -->
+  <link name="east_wall">
+    <pose>1.1 0 0.125 0 0 0</pose>
+    <collision name="collision">
+      <geometry>
+        <box>
+          <size>0.05 3.0 0.25</size>
+        </box>
+      </geometry>
+    </collision>
+    <visual name="visual">
+      <geometry>
+        <box>
+          <size>0.05 3.0 0.25</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>0.5 0.5 0.5 1</ambient>
+        <diffuse>0.5 0.5 0.5 1</diffuse>
+      </material>
+    </visual>
+  </link>
+
+  <!-- West wall -->
+  <link name="west_wall">
+    <pose>-1.1 0 0.125 0 0 0</pose>
+    <collision name="collision">
+      <geometry>
+        <box>
+          <size>0.05 3.0 0.25</size>
+        </box>
+      </geometry>
+    </collision>
+    <visual name="visual">
+      <geometry>
+        <box>
+          <size>0.05 3.0 0.25</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>0.5 0.5 0.5 1</ambient>
+        <diffuse>0.5 0.5 0.5 1</diffuse>
+      </material>
+    </visual>
+  </link>
+
+</model>
+
+
+    <!-- Include models with absolute paths -->
+    <include>
+      <uri>model://mat</uri>
+      <name>floor_mat</name>
+      <pose>0 -0.00433 0 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://simple_robot</uri>
+      <name>simple_robot</name>
+      <pose>0.868771 -1.16123 0.0035 0 0 3.1415</pose>
+    </include>
+
+    <!-- Blue Crates -->
+    <include>
+      <uri>model://crate</uri>
+      <name>crate</name>
+      <pose>0.123039 -1.3753 0.018499 0 0 -1.5642</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_1</name>
+      <pose>0.173038 -1.37506 0.0185 0 0 -1.5642</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_2</name>
+      <pose>-0.52415 -1.37532 0.0185 -0 -0 -1.5642</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_3</name>
+      <pose>-0.574153 -1.375 0.018499 0 0 -1.5642</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_4</name>
+      <pose>-0.870598 -0.472588 0.018499 -0 -0 3.13271</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_5</name>
+      <pose>-0.870996 -0.422215 0.0185 -0 -0 3.13766</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_6</name>
+      <pose>-0.873079 0.321639 0.018499 0 0 3.13271</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_7</name>
+      <pose>-0.875191 0.424269 0.0185 -0 -0 3.13678</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_8</name>
+      <pose>-0.677266 1.37341 0.0185 -0 0 1.56396</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_9</name>
+      <pose>-0.525644 1.37394 0.018499 0 -0 1.56191</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_10</name>
+      <pose>0.125086 1.37882 0.0185 -0 -0 1.56979</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_11</name>
+      <pose>0.225085 1.37758 0.0185 -0 -0 1.56979</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_12</name>
+      <pose>-0.198373 0.372357 0.0185 0 -0 3.13698</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_13</name>
+      <pose>-0.201906 0.272373 0.0185 -0 -0 3.13697</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_14</name>
+      <pose>-0.201321 -0.327593 0.0185 0 0 3.13843</pose>
+    </include>
+
+    <include>
+      <uri>model://crate</uri>
+      <name>crate_15</name>
+      <pose>-0.201382 -0.377593 0.0185 -0 -0 3.13843</pose>
+    </include>
+
+    <!-- Yellow Crates -->
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_1</name>
+      <pose>0.22501 -1.37446 0.018499 0 0 1.57972</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_2</name>
+      <pose>0.275049 -1.37451 0.018499 -0 -0 1.57972</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_3</name>
+      <pose>0.175086 1.37855 0.0185 -0 0 1.56979</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_4</name>
+      <pose>0.275086 1.37884 0.0185 0 -0 1.56979</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_5</name>
+      <pose>-0.626897 -1.37615 0.018499 -0 0 1.57972</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_6</name>
+      <pose>-0.677176 -1.3772 0.018499 -0 0 1.57972</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_7</name>
+      <pose>-0.871546 -0.371693 0.0185 -0 0 0.003064</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_8</name>
+      <pose>-0.869885 -0.321019 0.018499 0 -0 0.003176</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_9</name>
+      <pose>-0.875168 0.373791 0.0185 0 -0 0.001573</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_10</name>
+      <pose>-0.875208 0.474528 0.0185 -0 0 -0.001354</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_11</name>
+      <pose>-0.627211 1.37193 0.0185 0 -0 1.56481</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_12</name>
+      <pose>-0.577043 1.37114 0.0185 0 -0 1.5671</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_13</name>
+      <pose>-0.199325 0.424578 0.018499 -0 -0 -0.001354</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_14</name>
+      <pose>-0.201084 0.32237 0.0185 -0 -0 -0.004617</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_15</name>
+      <pose>-0.200865 -0.277595 0.0185 -0 0 -0.003162</pose>
+    </include>
+
+    <include>
+      <uri>model://crate_yellow</uri>
+      <name>crate_yellow_16</name>
+      <pose>-0.201808 -0.427592 0.0185 0 0 -0.00316</pose>
+    </include>
+
+    <!-- Light -->
+    <light name="sun" type="directional">
+      <pose>0 0 0 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>1</intensity>
+      <direction>-0.5 0.5 -1</direction>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.5 0.5 0.5 1</specular>
+    </light>
+
+  </world>
+</sdf>
+
