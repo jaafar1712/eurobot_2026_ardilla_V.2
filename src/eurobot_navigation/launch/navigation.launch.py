@@ -42,15 +42,22 @@ def generate_launch_description():
     )
 
 
+    rviz_config = os.path.join(eurobot_nav_dir, 'config', 'eurobot.rviz')
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
         output='screen',
-        arguments=[
-            '-d', '/root/.rviz2/eurobot.rviz'
-        ],
+        arguments=['-d', rviz_config] if os.path.exists(rviz_config) else [],
         parameters=[{'use_sim_time': True}]
+    )
+
+    teleop_node = Node(
+        package='eurobot_navigation',
+        executable='teleop_keyboard',
+        name='teleop_keyboard',
+        prefix='xterm -e',
+        output='screen',
     )
 
     return LaunchDescription([
@@ -70,9 +77,15 @@ def generate_launch_description():
             actions=[nav2_launch]
         ),
 
-        # Step 4 
+        # Step 4
         TimerAction(
             period=8.0,
             actions=[rviz_node]
+        ),
+
+        # Step 5
+        TimerAction(
+            period=9.0,
+            actions=[teleop_node]
         ),
     ])
