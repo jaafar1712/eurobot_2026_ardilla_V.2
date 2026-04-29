@@ -30,6 +30,9 @@ include_directories(include)
 # Install launch files
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
+# Install config files (RViz, params)
+install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
+
 # Install worlds files
 install(DIRECTORY worlds DESTINATION share/${PROJECT_NAME})
 
