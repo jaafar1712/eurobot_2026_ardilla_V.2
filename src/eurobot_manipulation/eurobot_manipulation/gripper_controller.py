@@ -83,13 +83,11 @@ class GripperController(Node):
         command = msg.data.lower().strip()
         
         if command == 'open':
-            if self.state in ['idle', 'gripping', 'closing']:
-                self.get_logger().info("[CMD] OPEN")
+            if self.state != 'opening':
+                self.get_logger().info(f"[CMD] OPEN (from {self.state})")
                 self.state = 'opening'
                 self.left_contact = False
                 self.right_contact = False
-            else:
-                self.get_logger().warn(f"[CMD] Cannot open in state: {self.state}")
                 
         elif command == 'close':
             if self.state in ['idle', 'opening']:

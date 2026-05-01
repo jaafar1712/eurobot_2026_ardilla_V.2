@@ -16,11 +16,11 @@ class SimpleCrateNavigator(Node):
         self.declare_parameter('target_color', 'yellow')
         self.declare_parameter('approach_distance', 0.4)
         self.declare_parameter('max_linear_speed', 0.5)
-        self.declare_parameter('max_angular_speed', 0.4)
-        self.declare_parameter('angle_tolerance', 1.5)     # degrees
+        self.declare_parameter('max_angular_speed', 0.8)
+        self.declare_parameter('angle_tolerance', 5.0)     # degrees
         self.declare_parameter('distance_tolerance', 0.015)
         self.declare_parameter('kp_linear', 0.8)
-        self.declare_parameter('kp_angular', 3.0)
+        self.declare_parameter('kp_angular', 1.5)
         self.declare_parameter('enable_approach', True)
 
         self.target_color = self.get_parameter('target_color').value
@@ -141,7 +141,7 @@ class SimpleCrateNavigator(Node):
         if self.state == 'ALIGNING':
             if abs(avg_angle) > self.angle_tol:
                 cmd.angular.z = self.clamp(
-                    -self.kp_angular * angle_error_rad,
+                    self.kp_angular * angle_error_rad,
                     -self.max_angular,
                     self.max_angular
                 )
@@ -162,7 +162,7 @@ class SimpleCrateNavigator(Node):
 
                 if abs(avg_angle) > self.angle_tol * 0.5:
                     cmd.angular.z = self.clamp(
-                        -0.4 * self.kp_angular * angle_error_rad,
+                        0.4 * self.kp_angular * angle_error_rad,
                         -0.3 * self.max_angular,
                         0.3 * self.max_angular
                     )
