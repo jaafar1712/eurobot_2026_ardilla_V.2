@@ -1,240 +1,159 @@
 #!/usr/bin/env python3
 """
-Clean Gripper Controller - Built from scratch
-Simple and reliable gripper control with proper state management
+Eurobot 2026 Gripper Controller - Fixed contact latching
 """
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray, String
-from ros_gz_interfaces.msg import Contacts
+from std_msgs.msg import String, Float64
 from sensor_msgs.msg import JointState
+from gazebo_msgs.msg import ContactsState
+
+OPEN_POS   =  0.04
+CLOSED_POS = -0.04
+POSITION_TOLERANCE = 0.003
+MOVE_TIMEOUT = 3.0
 
 
 class GripperController(Node):
+
     def __init__(self):
-        super().__init__('gripper_controller_node')
+        super().__init__('gripper_controller')
 
-        # ========== Publishers ==========
-        self.cmd_pub = self.create_publisher(
-            Float64MultiArray, 
-            '/gripper_controller/commands', 
-            10
-        )
-        self.state_pub = self.create_publisher(String, '/gripper/state', 10)
+        self._state           = "idle"
+        self._left_pos        = 0.04
+        self._right_pos       = 0.04
+        self._left_contact    = False
+        self._right_contact   = False
+        self._contact_latched = False
+        self._move_start_time = None
+        self._joints_ready    = False
 
-        # ========== Subscribers ==========
-        self.create_subscription(
-            String, 
-            '/gripper/command', 
-            self.command_callback, 
-            10
-        )
-        self.create_subscription(
-            JointState, 
-            '/joint_states', 
-            self.joint_state_callback, 
-            10
-        )
-        self.create_subscription(
-            Contacts, 
-            '/gripper/left/contact', 
-            self.left_contact_callback, 
-            10
-        )
-        self.create_subscription(
-            Contacts, 
-            '/gripper/right/contact', 
-            self.right_contact_callback, 
-            10
-        )
+        self.create_subscription(String,       '/gripper/command',       self._cmd_cb,           10)
+        self.create_subscription(JointState,   '/joint_states',          self._joint_state_cb,   10)
+        self.create_subscription(ContactsState,'/gripper/left/contact',  self._left_contact_cb,  10)
+        self.create_subscription(ContactsState,'/gripper/right/contact', self._right_contact_cb, 10)
 
-        # ========== State Variables ==========
-        self.state = "initializing"
-        
-        # Position limits
-        self.MIN_POS = -0.04  # Fully closed
-        self.MAX_POS = 0.04   # Fully open
-        self.STEP = 0.02      # ⚡ Increased from 0.01 → 0.02 (2x faster movement)
-        
-        # Current positions (read from sensors)
-        self.current_left = 0.0
-        self.current_right = 0.0
-        self.joint_states_received = False
-        
-        # Target positions (what we command)
-        self.target_left = 0.0
-        self.target_right = 0.0
-        
-        # Contact sensors
-        self.left_contact = False
-        self.right_contact = False
+        self._left_pub  = self.create_publisher(Float64, '/model/simple_robot/joint/left_finger_joint/cmd_pos',  10)
+        self._right_pub = self.create_publisher(Float64, '/model/simple_robot/joint/right_finger_joint/cmd_pos', 10)
+        self._state_pub = self.create_publisher(String,  '/gripper/state', 10)
 
-        # ========== Control Timer ==========
-        self.create_timer(0.02, self.control_loop)  # ⚡ Increased from 20 Hz → 50 Hz
+        self.create_timer(0.05, self._control_loop)
+        self.create_timer(0.1,  self._publish_state)
 
-        self.get_logger().info("="*60)
-        self.get_logger().info("Gripper Controller Started")
-        self.get_logger().info("="*60)
+        self.get_logger().info("GripperController ready")
 
-    # ========== Callbacks ==========
-
-    def command_callback(self, msg):
-        """Handle open/close commands"""
-        command = msg.data.lower().strip()
-        
-        if command == 'open':
-            if self.state != 'opening':
-                self.get_logger().info(f"[CMD] OPEN (from {self.state})")
-                self.state = 'opening'
-                self.left_contact = False
-                self.right_contact = False
-                
-        elif command == 'close':
-            if self.state in ['idle', 'opening']:
+    def _cmd_cb(self, msg: String):
+        cmd = msg.data.strip().lower()
+        if cmd == 'open':
+            if self._state != 'opening':
+                self.get_logger().info(f"[CMD] OPEN  (was: {self._state})")
+                self._state = 'opening'
+                self._contact_latched = False
+                self._move_start_time = self.get_clock().now()
+                self._send_pos(OPEN_POS)
+        elif cmd == 'close':
+            if self._state == 'idle':
                 self.get_logger().info("[CMD] CLOSE")
-                self.state = 'closing'
-                self.left_contact = False
-                self.right_contact = False
+                self._state = 'closing'
+                self._contact_latched = False
+                self._left_contact    = False
+                self._right_contact   = False
+                self._move_start_time = self.get_clock().now()
+                self._send_pos(CLOSED_POS)
+            elif self._state in ('closing', 'gripping'):
+                pass  # silently ignore repeated close commands
             else:
-                self.get_logger().warn(f"[CMD] Cannot close in state: {self.state}")
-        else:
-            self.get_logger().warn(f"[CMD] Unknown command: '{command}'")
+                self.get_logger().warn(f"[CMD] Cannot close in state: {self._state}")
 
-    def joint_state_callback(self, msg):
-        """Update current joint positions"""
-        try:
-            left_idx = msg.name.index('left_finger_joint')
-            right_idx = msg.name.index('right_finger_joint')
-            
-            self.current_left = msg.position[left_idx]
-            self.current_right = msg.position[right_idx]
-            
-            if not self.joint_states_received:
-                self.joint_states_received = True
-                self.target_left = self.current_left
-                self.target_right = self.current_right
-                self.get_logger().info(
-                    f"[INIT] Joint states received: "
-                    f"left={self.current_left:.4f}, right={self.current_right:.4f}"
-                )
-        except (ValueError, IndexError):
-            pass
+    def _joint_state_cb(self, msg: JointState):
+        for i, name in enumerate(msg.name):
+            if name == 'left_finger_joint':
+                self._left_pos = msg.position[i]
+            elif name == 'right_finger_joint':
+                self._right_pos = msg.position[i]
+        if not self._joints_ready:
+            self._joints_ready = True
+            self.get_logger().info(
+                f"Joints initialised — L={self._left_pos:.3f}  R={self._right_pos:.3f} — opening"
+            )
+            self._state = 'opening'
+            self._move_start_time = self.get_clock().now()
+            self._send_pos(OPEN_POS)
 
-    def left_contact_callback(self, msg):
-        """Left finger contact sensor"""
-        was_contact = self.left_contact
-        self.left_contact = len(msg.contacts) > 0
-        
-        if self.left_contact and not was_contact and self.state == 'closing':
+    def _left_contact_cb(self, msg: ContactsState):
+        had = self._left_contact
+        self._left_contact = len(msg.states) > 0
+        if self._left_contact and not had:
             self.get_logger().info("[CONTACT] Left finger")
+        if self._left_contact and self._state == 'closing':
+            self._contact_latched = True
 
-    def right_contact_callback(self, msg):
-        """Right finger contact sensor"""
-        was_contact = self.right_contact
-        self.right_contact = len(msg.contacts) > 0
-        
-        if self.right_contact and not was_contact and self.state == 'closing':
+    def _right_contact_cb(self, msg: ContactsState):
+        had = self._right_contact
+        self._right_contact = len(msg.states) > 0
+        if self._right_contact and not had:
             self.get_logger().info("[CONTACT] Right finger")
+        if self._right_contact and self._state == 'closing':
+            self._contact_latched = True
 
-    # ========== Control Loop ==========
-
-    def control_loop(self):
-        """Main control loop - runs at 50 Hz"""
-        
-        # Always publish current state
-        state_msg = String()
-        state_msg.data = self.state
-        self.state_pub.publish(state_msg)
-        
-        # State machine
-        if self.state == 'initializing':
-            self.handle_initializing()
-        elif self.state == 'opening':
-            self.handle_opening()
-        elif self.state == 'closing':
-            self.handle_closing()
-        elif self.state == 'gripping':
-            self.handle_gripping()
-        elif self.state == 'idle':
-            self.handle_idle()
-        
-        # Always publish target positions
-        self.publish_targets()
-
-    # ========== State Handlers ==========
-
-    def handle_initializing(self):
-        """Wait for joint states, then open gripper"""
-        if not self.joint_states_received:
+    def _control_loop(self):
+        if not self._joints_ready:
             return
-        
-        # Got joint states - start opening
-        self.get_logger().info("[INIT] Opening gripper to start position...")
-        self.state = 'opening'
+        now = self.get_clock().now()
+        elapsed = (now - self._move_start_time).nanoseconds / 1e9 if self._move_start_time else 0
 
-    def handle_opening(self):
-        """Open the gripper"""
-        # Increment targets toward max
-        if self.target_left < self.MAX_POS:
-            self.target_left = min(self.MAX_POS, self.target_left + self.STEP)
-        if self.target_right < self.MAX_POS:
-            self.target_right = min(self.MAX_POS, self.target_right + self.STEP)
-        
-        # Check if fully open
-        if self.target_left >= self.MAX_POS and self.target_right >= self.MAX_POS:
-            self.get_logger().info("[OPEN] Gripper fully opened")
-            self.state = 'idle'
+        if self._state == 'opening':
+            self._send_pos(OPEN_POS)
+            if self._at_target(OPEN_POS) or elapsed > MOVE_TIMEOUT:
+                self.get_logger().info("[OPEN] Fully open → idle")
+                self._state = 'idle'
 
-    def handle_closing(self):
-        """Close the gripper"""
-        # Check if both fingers have contact
-        if self.left_contact and self.right_contact:
-            self.get_logger().info("[GRASP] Object grasped!")
-            self.state = 'gripping'
-            return
-        
-        # Decrement targets toward min (only if no contact)
-        if not self.left_contact and self.target_left > self.MIN_POS:
-            self.target_left = max(self.MIN_POS, self.target_left - self.STEP)
-        if not self.right_contact and self.target_right > self.MIN_POS:
-            self.target_right = max(self.MIN_POS, self.target_right - self.STEP)
-        
-        # Check if fully closed without object
-        if self.target_left <= self.MIN_POS and self.target_right <= self.MIN_POS:
-            if not (self.left_contact and self.right_contact):
-                self.get_logger().warn("[CLOSE] Fully closed but no object detected")
-                self.state = 'idle'
+        elif self._state == 'closing':
+            if self._contact_latched:
+                hold = (self._left_pos + self._right_pos) / 2.0
+                self._send_pos(hold)
+                self.get_logger().info(
+                    f"[GRIP] Contact latched L={self._left_pos:.3f} R={self._right_pos:.3f} → gripping"
+                )
+                self._state = 'gripping'
+                return
+            if self._at_target(CLOSED_POS):
+                self.get_logger().warn("[MISS] Fully closed, no contact → idle")
+                self._state = 'idle'
+                return
+            if elapsed > MOVE_TIMEOUT:
+                self.get_logger().warn("[MISS] Timeout, no contact → idle")
+                self._state = 'idle'
+                return
+            self._send_pos(CLOSED_POS)
 
-    def handle_gripping(self):
-        """Hold the object - maintain current position"""
-        pass  # Targets don't change
+        elif self._state == 'gripping':
+            hold = (self._left_pos + self._right_pos) / 2.0
+            self._send_pos(hold)
 
-    def handle_idle(self):
-        """Idle - maintain current position"""
-        pass  # Targets don't change
+    def _publish_state(self):
+        msg = String()
+        msg.data = self._state
+        self._state_pub.publish(msg)
 
-    # ========== Utilities ==========
+    def _send_pos(self, pos: float):
+        msg = Float64()
+        msg.data = float(pos)
+        self._left_pub.publish(msg)
+        self._right_pub.publish(msg)
 
-    def publish_targets(self):
-        """Publish target positions to Gazebo"""
-        # Clamp to limits
-        self.target_left = max(self.MIN_POS, min(self.MAX_POS, self.target_left))
-        self.target_right = max(self.MIN_POS, min(self.MAX_POS, self.target_right))
-        
-        # Publish
-        msg = Float64MultiArray()
-        msg.data = [self.target_left, self.target_right]
-        self.cmd_pub.publish(msg)
+    def _at_target(self, target: float) -> bool:
+        return (abs(self._left_pos  - target) < POSITION_TOLERANCE and
+                abs(self._right_pos - target) < POSITION_TOLERANCE)
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = GripperController()
-    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info("Gripper controller stopped")
+        node.get_logger().info("Gripper Controller shutting down")
     finally:
         node.destroy_node()
         rclpy.shutdown()

@@ -57,15 +57,6 @@ def generate_launch_description():
         output='screen'
     )
 
-    # --- Gripper controller (t=5s, after Gazebo bridges are up) ---
-    gripper_controller = Node(
-        package='eurobot_navigation',
-        executable='gripper_controller',
-        name='gripper_controller',
-        output='screen',
-        parameters=[{'use_sim_time': True}]
-    )
-
     # --- Navigation (t=5s) ---
     scan_frame_fixer = Node(
         package='eurobot_navigation',
@@ -132,11 +123,8 @@ def generate_launch_description():
         navigation_bridges,
         rviz,
 
-        # t=5s: Gripper controller + scan_frame_fixer
-        TimerAction(period=5.0, actions=[
-            gripper_controller,
-            scan_frame_fixer,
-        ]),
+        # t=5s: scan_frame_fixer
+        TimerAction(period=5.0, actions=[scan_frame_fixer]),
 
         # t=7s: SLAM
         TimerAction(period=7.0, actions=[slam]),

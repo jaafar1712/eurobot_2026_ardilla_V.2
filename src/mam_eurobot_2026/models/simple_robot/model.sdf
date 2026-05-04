@@ -621,28 +621,19 @@
         name="ignition::gazebo::systems::Contact">
     </plugin>
     <!-- ====================== GRIPPER JOINT CONTROLLERS ====================== -->
-    <!-- Direct position control via gz_bridge — no controller_manager needed -->
-    <!-- Topic: /model/simple_robot/joint/left_finger_joint/cmd_pos (Float64) -->
+    <!-- Ignition Fortress JointController: velocity mode only              -->
+    <!-- Topic: /model/simple_robot/joint/left_finger_joint/cmd_vel (Float64) -->
+    <!-- Position control is implemented via PID in the ROS2 gripper_controller node -->
     <plugin filename="libignition-gazebo-joint-controller-system.so"
             name="ignition::gazebo::systems::JointController">
       <joint_name>left_finger_joint</joint_name>
       <use_force_commands>false</use_force_commands>
-      <p_gain>500.0</p_gain>
-      <i_gain>0.0</i_gain>
-      <d_gain>10.0</d_gain>
-      <cmd_max>40.0</cmd_max>
-      <cmd_min>-40.0</cmd_min>
     </plugin>
 
     <plugin filename="libignition-gazebo-joint-controller-system.so"
             name="ignition::gazebo::systems::JointController">
       <joint_name>right_finger_joint</joint_name>
       <use_force_commands>false</use_force_commands>
-      <p_gain>500.0</p_gain>
-      <i_gain>0.0</i_gain>
-      <d_gain>10.0</d_gain>
-      <cmd_max>40.0</cmd_max>
-      <cmd_min>-40.0</cmd_min>
     </plugin>
    
   </model>

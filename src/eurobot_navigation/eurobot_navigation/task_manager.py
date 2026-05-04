@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Eurobot 2026 Task Manager
-Sequential controller for autonomous crate collection mission
+Eurobot 2026 Task Manager (with integrated gripper controller)
+Single node — handles mission logic AND gripper hardware directly.
 
 FIXES APPLIED:
   - Added angle_sign parameter to fix wrong navigation direction
@@ -11,26 +11,27 @@ FIXES APPLIED:
   - Tightened alignment distance margin
   - Fast gripper-miss detection: closing→idle transition = missed grip
   - Failed-crate blacklist: prevents infinite retargeting of same crate
+  - Fixed infinite nav loop in handle_navigating_to_dropoff
+  - Fixed infinite nav loop in handle_returning_to_nest
+  - Merged gripper_controller: velocity-based position control in-process
 """
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from geometry_msgs.msg import PoseStamped, Twist
-from std_msgs.msg import String
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Float64, String
+from sensor_msgs.msg import JointState
 from nav_msgs.msg import Odometry
 from nav2_msgs.action import NavigateToPose
+from ros_gz_interfaces.msg import Contacts
 import math
 
 from eurobot_interfaces.msg import CrateDetectionArray, PantryDetectionArray
 
 
 class TaskManager(Node):
-    """
-    Main task manager for Eurobot 2026 competition
-    Orchestrates: Perception → Navigation → Manipulation
-    """
 
-    # State definitions
+    # ── Mission states ────────────────────────────────────────────────────────
     STATE_INITIALIZING        = "INITIALIZING"
     STATE_SEARCHING_CRATE     = "SEARCHING_CRATE"
     STATE_NAVIGATING_TO_CRATE = "NAVIGATING_TO_CRATE"
@@ -41,10 +42,17 @@ class TaskManager(Node):
     STATE_RETURNING_TO_NEST   = "RETURNING_TO_NEST"
     STATE_FINISHED            = "FINISHED"
 
+    # ── Gripper hardware constants (from model.sdf) ───────────────────────────
+    GRIPPER_POS_OPEN   =  0.04   # m
+    GRIPPER_POS_CLOSED = -0.04   # m
+    GRIPPER_MAX_VEL    =  0.05   # m/s
+    GRIPPER_KP         =  2.0
+    GRIPPER_DEADBAND   =  0.002  # m
+
     def __init__(self):
         super().__init__('task_manager')
 
-        # ========== PARAMETERS ==========
+        # ── Parameters ───────────────────────────────────────────────────────
         self.declare_parameter('team_color', 'yellow')
         self.declare_parameter('match_duration', 100.0)
         self.declare_parameter('nest_return_time', 10.0)
@@ -52,21 +60,18 @@ class TaskManager(Node):
         self.declare_parameter('alignment_distance', 0.50)
         self.declare_parameter('alignment_tolerance', 0.04)
         self.declare_parameter('angle_tolerance', 8.0)
-
-        # ✅ FIX 1: angle_sign corrects wrong navigation direction
-        # Set to -1 if robot turns AWAY from crate, +1 if it turns correctly
         self.declare_parameter('angle_sign', 1)
 
-        self.team_color     = self.get_parameter('team_color').value
-        self.match_duration = self.get_parameter('match_duration').value
+        self.team_color       = self.get_parameter('team_color').value
+        self.match_duration   = self.get_parameter('match_duration').value
         self.nest_return_time = self.get_parameter('nest_return_time').value
-        self.max_crates     = self.get_parameter('max_crates_to_collect').value
-        self.alignment_dist = self.get_parameter('alignment_distance').value
-        self.alignment_tol  = self.get_parameter('alignment_tolerance').value
-        self.angle_tol      = self.get_parameter('angle_tolerance').value
-        self.angle_sign     = self.get_parameter('angle_sign').value  # ✅ NEW
+        self.max_crates       = self.get_parameter('max_crates_to_collect').value
+        self.alignment_dist   = self.get_parameter('alignment_distance').value
+        self.alignment_tol    = self.get_parameter('alignment_tolerance').value
+        self.angle_tol        = self.get_parameter('angle_tolerance').value
+        self.angle_sign       = self.get_parameter('angle_sign').value
 
-        # ========== STATE VARIABLES ==========
+        # ── Mission state ─────────────────────────────────────────────────────
         self.state            = self.STATE_INITIALIZING
         self.match_start_time = None
         self.crates_collected = 0
@@ -75,125 +80,213 @@ class TaskManager(Node):
         self.current_position = None
         self.current_yaw      = 0.0
 
-        # Perception data
         self.latest_crates   = []
         self.latest_pantries = []
-        self.gripper_state   = "idle"
 
-        # Navigation flags
         self.nav_goal_active    = False
         self.nav_goal_result    = None
         self.nav_goal_sent_time = None
         self.nav_timeout        = 30.0
+        self._dropoff_nav_sent  = False
+        self._nest_nav_sent     = False
 
-        # Grip timing
-        self._grip_start_time = None
-        self._gripper_missed   = False   # set when gripper closes fully with no contact
+        self._grip_start_time   = None
+        self._gripper_missed    = False
 
-        # Failed-crate blacklist: list of (world_x, world_y) positions where grip failed
         self.failed_crate_positions = []
-        self._BLACKLIST_RADIUS = 0.30   # metres — skip crates within this radius of a failure
+        self._BLACKLIST_RADIUS      = 0.30
 
-        # ✅ FIX 2: crate lost counter — ignore single missed frames
-        self._crate_lost_count = 0
-        self._CRATE_LOST_THRESHOLD = 5  # must miss 5 consecutive frames before reacting
+        self._crate_lost_count    = 0
+        self._CRATE_LOST_THRESHOLD = 5
 
-        # ========== SUBSCRIBERS ==========
-        self.create_subscription(CrateDetectionArray, '/crate/detections', self.crate_callback, 10)
-        self.create_subscription(PantryDetectionArray, '/pantry/detections', self.pantry_callback, 10)
-        self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.create_subscription(String, '/gripper/state', self.gripper_state_callback, 10)
+        # ── Gripper hardware state ────────────────────────────────────────────
+        self.gripper_state      = 'initializing'
+        self._gripper_left_pos  = 0.0
+        self._gripper_right_pos = 0.0
+        self._gripper_left_contact  = False
+        self._gripper_right_contact = False
+        self._gripper_joints_ready  = False
 
-        # ========== PUBLISHERS ==========
-        self.cmd_vel_pub    = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.gripper_cmd_pub = self.create_publisher(String, '/gripper/command', 10)
-        self.state_pub      = self.create_publisher(String, '/task_manager/state', 10)
+        # ── Publishers ────────────────────────────────────────────────────────
+        self.cmd_vel_pub       = self.create_publisher(Twist,  '/cmd_vel', 10)
+        self.state_pub         = self.create_publisher(String, '/task_manager/state', 10)
+        self.gripper_state_pub = self.create_publisher(String, '/gripper/state', 10)
+        self._left_vel_pub  = self.create_publisher(
+            Float64, '/model/simple_robot/joint/left_finger_joint/cmd_vel', 10)
+        self._right_vel_pub = self.create_publisher(
+            Float64, '/model/simple_robot/joint/right_finger_joint/cmd_vel', 10)
 
-        # ========== ACTION CLIENTS ==========
+        # ── Subscribers ───────────────────────────────────────────────────────
+        self.create_subscription(CrateDetectionArray,  '/crate/detections',   self.crate_callback,   10)
+        self.create_subscription(PantryDetectionArray, '/pantry/detections',  self.pantry_callback,  10)
+        self.create_subscription(Odometry,             '/odom',               self.odom_callback,    10)
+        self.create_subscription(JointState,           '/joint_states',       self._joint_state_cb,  10)
+        self.create_subscription(Contacts, '/gripper/left/contact',  self._left_contact_cb,  10)
+        self.create_subscription(Contacts, '/gripper/right/contact', self._right_contact_cb, 10)
+
+        # ── Action client ─────────────────────────────────────────────────────
         self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
-        # ========== TIMERS ==========
-        self.main_timer          = self.create_timer(0.05, self.main_loop)
-        self.state_publish_timer = self.create_timer(1.0, self.publish_state)
+        # ── Timers ────────────────────────────────────────────────────────────
+        self.create_timer(0.05,  self.main_loop)           # 20 Hz mission loop
+        self.create_timer(0.05,  self._gripper_loop)       # 20 Hz gripper loop
+        self.create_timer(1.0,   self.publish_state)
 
-        self.get_logger().info(f"Task Manager initialized - Team: {self.team_color}")
-        self.get_logger().info(f"Angle sign: {self.angle_sign} (flip with angle_sign:=-1 if turning wrong way)")
-        self.get_logger().info("Waiting for navigation action server...")
+        self.get_logger().info(f"TaskManager+Gripper started — team: {self.team_color}")
+        self.get_logger().info("Waiting for Nav2 action server...")
         self.nav_client.wait_for_server()
-        self.get_logger().info("Navigation server ready!")
+        self.get_logger().info("Nav2 ready!")
 
-    # ========================================================================
-    # CALLBACKS
-    # ========================================================================
+    # =========================================================================
+    # PERCEPTION / ODOMETRY CALLBACKS
+    # =========================================================================
 
     def crate_callback(self, msg):
-        self.latest_crates = [det for det in msg.detections if det.color == self.team_color]
+        self.latest_crates = [d for d in msg.detections if d.color == self.team_color]
 
     def pantry_callback(self, msg):
         self.latest_pantries = msg.detections
 
     def odom_callback(self, msg):
         self.current_position = msg.pose.pose.position
-        quat = msg.pose.pose.orientation
-        siny_cosp = 2 * (quat.w * quat.z + quat.x * quat.y)
-        cosy_cosp = 1 - 2 * (quat.y * quat.y + quat.z * quat.z)
-        self.current_yaw = math.atan2(siny_cosp, cosy_cosp)
-
+        q = msg.pose.pose.orientation
+        self.current_yaw = math.atan2(
+            2*(q.w*q.z + q.x*q.y),
+            1 - 2*(q.y*q.y + q.z*q.z)
+        )
         if self.home_position is None:
-            self.home_position = {
-                'x': self.current_position.x,
-                'y': self.current_position.y,
-            }
+            self.home_position = {'x': self.current_position.x, 'y': self.current_position.y}
             self.get_logger().info(
-                f"Home position set: ({self.home_position['x']:.2f}, {self.home_position['y']:.2f})"
-            )
+                f"Home set: ({self.home_position['x']:.2f}, {self.home_position['y']:.2f})")
 
-    def gripper_state_callback(self, msg):
-        prev = self.gripper_state
-        self.gripper_state = msg.data
-        # Gripper closed fully without contact → immediate miss detection
-        if (prev == "closing" and self.gripper_state == "idle"
-                and self.state == self.STATE_GRIPPING_CRATE):
-            self._gripper_missed = True
+    # =========================================================================
+    # GRIPPER HARDWARE CALLBACKS
+    # =========================================================================
 
-    # ========================================================================
-    # MAIN STATE MACHINE
-    # ========================================================================
+    def _joint_state_cb(self, msg: JointState):
+        try:
+            li = msg.name.index('left_finger_joint')
+            ri = msg.name.index('right_finger_joint')
+            self._gripper_left_pos  = msg.position[li]
+            self._gripper_right_pos = msg.position[ri]
+            if not self._gripper_joints_ready:
+                self._gripper_joints_ready = True
+                self.gripper_state = 'opening'
+                self.get_logger().info('Gripper joints ready — opening')
+        except (ValueError, IndexError):
+            pass
+
+    def _left_contact_cb(self, msg: Contacts):
+        had = self._gripper_left_contact
+        self._gripper_left_contact = len(msg.contacts) > 0
+        if self._gripper_left_contact and not had and self.gripper_state == 'closing':
+            self.get_logger().info('[CONTACT] Left finger')
+
+    def _right_contact_cb(self, msg: Contacts):
+        had = self._gripper_right_contact
+        self._gripper_right_contact = len(msg.contacts) > 0
+        if self._gripper_right_contact and not had and self.gripper_state == 'closing':
+            self.get_logger().info('[CONTACT] Right finger')
+
+    # =========================================================================
+    # GRIPPER CONTROL LOOP (20 Hz)
+    # =========================================================================
+
+    def _gripper_loop(self):
+        s = String()
+        s.data = self.gripper_state
+        self.gripper_state_pub.publish(s)
+
+        if not self._gripper_joints_ready:
+            return
+
+        if self.gripper_state == 'opening':
+            lv = self._gripper_vel(self._gripper_left_pos,  self.GRIPPER_POS_OPEN)
+            rv = self._gripper_vel(self._gripper_right_pos, self.GRIPPER_POS_OPEN)
+            self._pub_gripper_vel(lv, rv)
+            if (abs(self.GRIPPER_POS_OPEN - self._gripper_left_pos)  < self.GRIPPER_DEADBAND and
+                    abs(self.GRIPPER_POS_OPEN - self._gripper_right_pos) < self.GRIPPER_DEADBAND):
+                self.get_logger().info('[GRIPPER] Fully open → idle')
+                self._pub_gripper_vel(0.0, 0.0)
+                self.gripper_state = 'idle'
+
+        elif self.gripper_state == 'closing':
+            if self._gripper_left_contact and self._gripper_right_contact:
+                self.get_logger().info('[GRIPPER] Object grasped!')
+                self._pub_gripper_vel(0.0, 0.0)
+                self.gripper_state = 'gripping'
+                return
+
+            lv = 0.0 if self._gripper_left_contact  else self._gripper_vel(self._gripper_left_pos,  self.GRIPPER_POS_CLOSED)
+            rv = 0.0 if self._gripper_right_contact else self._gripper_vel(self._gripper_right_pos, self.GRIPPER_POS_CLOSED)
+            self._pub_gripper_vel(lv, rv)
+
+            # Fully closed with no contact → missed
+            if (abs(self.GRIPPER_POS_CLOSED - self._gripper_left_pos)  < self.GRIPPER_DEADBAND and
+                    abs(self.GRIPPER_POS_CLOSED - self._gripper_right_pos) < self.GRIPPER_DEADBAND and
+                    not (self._gripper_left_contact and self._gripper_right_contact)):
+                self.get_logger().warn('[GRIPPER] Fully closed — no contact (missed)')
+                self._pub_gripper_vel(0.0, 0.0)
+                self.gripper_state = 'idle'
+                self._gripper_missed = True   # signal mission loop
+
+        else:
+            self._pub_gripper_vel(0.0, 0.0)  # idle / gripping — hold
+
+    def _gripper_open(self):
+        if self.gripper_state != 'opening':
+            self.get_logger().info(f'[GRIPPER] Open command (was: {self.gripper_state})')
+            self.gripper_state = 'opening'
+            self._gripper_left_contact = self._gripper_right_contact = False
+
+    def _gripper_close(self):
+        if self.gripper_state in ('idle', 'opening'):
+            self.get_logger().info('[GRIPPER] Close command')
+            self.gripper_state = 'closing'
+            self._gripper_left_contact = self._gripper_right_contact = False
+
+    def _gripper_vel(self, current: float, target: float) -> float:
+        err = target - current
+        if abs(err) < self.GRIPPER_DEADBAND:
+            return 0.0
+        return max(-self.GRIPPER_MAX_VEL, min(self.GRIPPER_MAX_VEL, self.GRIPPER_KP * err))
+
+    def _pub_gripper_vel(self, left: float, right: float):
+        lm = Float64(); lm.data = left
+        rm = Float64(); rm.data = right
+        self._left_vel_pub.publish(lm)
+        self._right_vel_pub.publish(rm)
+
+    # =========================================================================
+    # MISSION STATE MACHINE (20 Hz)
+    # =========================================================================
 
     def main_loop(self):
         # Navigation timeout watchdog
         if self.nav_goal_active and self.nav_goal_sent_time is not None:
             elapsed = (self.get_clock().now() - self.nav_goal_sent_time).nanoseconds / 1e9
             if elapsed > self.nav_timeout:
-                self.get_logger().warn(f"Navigation timeout ({elapsed:.1f}s)!")
+                self.get_logger().warn(f"Nav timeout ({elapsed:.1f}s)!")
                 self.nav_goal_active = False
                 self.nav_goal_result = False
             elif elapsed > 5.0:
                 self.get_logger().info(
-                    f"Navigation in progress... {elapsed:.1f}s elapsed",
-                    throttle_duration_sec=5.0
-                )
+                    f"Navigating... {elapsed:.1f}s", throttle_duration_sec=5.0)
 
         # Match timer
         if self.match_start_time is not None:
             elapsed = (self.get_clock().now() - self.match_start_time).nanoseconds / 1e9
-            time_remaining = self.match_duration - elapsed
-
-            if time_remaining > 0:
+            remaining = self.match_duration - elapsed
+            if remaining > 0:
                 self.get_logger().info(
-                    f"Match time: {time_remaining:.1f}s remaining",
-                    throttle_duration_sec=10.0
-                )
-
-            if (time_remaining <= self.nest_return_time
+                    f"Match: {remaining:.1f}s remaining", throttle_duration_sec=10.0)
+            if (remaining <= self.nest_return_time
                     and self.state not in (self.STATE_RETURNING_TO_NEST, self.STATE_FINISHED)):
-                self.get_logger().warn(f"{time_remaining:.1f}s remaining - returning to nest!")
+                self.get_logger().warn(f"{remaining:.1f}s left — returning to nest!")
                 self.transition_to(self.STATE_RETURNING_TO_NEST)
-
             if elapsed >= self.match_duration:
                 self.transition_to(self.STATE_FINISHED)
 
-        # Dispatch
         dispatch = {
             self.STATE_INITIALIZING:          self.handle_initializing,
             self.STATE_SEARCHING_CRATE:       self.handle_searching_crate,
@@ -209,54 +302,47 @@ class TaskManager(Node):
         if handler:
             handler()
 
-    # ========================================================================
+    # =========================================================================
     # STATE HANDLERS
-    # ========================================================================
+    # =========================================================================
 
     def handle_initializing(self):
         if self.home_position is None:
             return
-
         self.match_start_time = self.get_clock().now()
-        self.get_logger().info("Match started! Gripper opening, searching for crates...")
-        self.send_gripper_command('open')
+        self.get_logger().info("Match started!")
+        self._gripper_open()
         self.transition_to(self.STATE_SEARCHING_CRATE)
 
     def handle_searching_crate(self):
         if self.crates_collected >= self.max_crates:
-            self.get_logger().info("Maximum crates collected! Returning to nest.")
+            self.get_logger().info("Max crates collected — returning to nest.")
             self.transition_to(self.STATE_RETURNING_TO_NEST)
             return
 
         if not self.latest_crates:
-            # ✅ FIX 3: Faster rotation while searching (was 0.3, now 0.6 rad/s)
             self.rotate_in_place(0.6)
             return
 
         available = [c for c in self.latest_crates if not self._is_blacklisted(c)]
         if not available:
-            # All visible crates previously failed — clear blacklist and retry
-            self.get_logger().warn("All visible crates are blacklisted — clearing blacklist")
+            self.get_logger().warn("All crates blacklisted — clearing blacklist")
             self.failed_crate_positions.clear()
             available = self.latest_crates
 
         self.current_crate = min(available, key=lambda c: c.distance)
         self.get_logger().info(
-            f"Target crate: distance={self.current_crate.distance:.2f}m, "
-            f"angle={self.current_crate.angle:.1f}°"
-        )
+            f"Target: dist={self.current_crate.distance:.2f}m  angle={self.current_crate.angle:.1f}°")
         self.transition_to(self.STATE_NAVIGATING_TO_CRATE)
 
     def handle_navigating_to_crate(self):
-        """Drive toward the crate at full speed until close enough for fine alignment."""
         if self.latest_crates:
             self.current_crate = min(self.latest_crates, key=lambda c: c.distance)
-            self._crate_lost_count = 0  # reset lost counter when crate is visible
+            self._crate_lost_count = 0
         else:
-            # ✅ FIX 2: Don't react instantly to missing frames
             self._crate_lost_count += 1
             if self._crate_lost_count < self._CRATE_LOST_THRESHOLD:
-                return  # keep driving briefly while crate momentarily disappears
+                return
             self.stop_robot()
             self.transition_to(self.STATE_SEARCHING_CRATE)
             return
@@ -269,40 +355,24 @@ class TaskManager(Node):
         angle_deg = self.current_crate.angle
         distance  = self.current_crate.distance
 
-        # Hand off to fine alignment when close
         if distance <= self.alignment_dist + 0.05:
             self.stop_robot()
-            self.get_logger().info("Reached crate vicinity — starting fine alignment")
+            self.get_logger().info("Crate vicinity reached — fine alignment")
             self.transition_to(self.STATE_ALIGNING_WITH_CRATE)
             return
 
         cmd = Twist()
-        angle_rad = math.radians(angle_deg)
-
-        # ✅ FIX 1: Use angle_sign to correct turning direction
-        # ✅ FIX 3: Increased angular gain (2.0→3.0) and max speed (0.8→1.2)
-        cmd.angular.z = max(-1.2, min(1.2, 3.0 * self.angle_sign * angle_rad))
-
-        # ✅ FIX 3: Increased linear speed (0.5→0.8 m/s max)
+        cmd.angular.z = max(-1.2, min(1.2, 3.0 * self.angle_sign * math.radians(angle_deg)))
         if abs(angle_deg) < 45.0:
             cmd.linear.x = max(0.1, min(0.8, 0.8 * (distance - self.alignment_dist)))
-
         self.get_logger().info(
             f"Approaching: dist={distance:.2f}m  angle={angle_deg:.1f}°",
-            throttle_duration_sec=1.0
-        )
+            throttle_duration_sec=1.0)
         self.cmd_vel_pub.publish(cmd)
 
     def handle_aligning_with_crate(self):
-        """
-        Fine alignment with gripper open.
-        Corrects angle and slowly drives forward until the crate sits exactly
-        at alignment_dist — the position where the open gripper jaws surround it.
-        """
         if not self.latest_crates:
             self._crate_lost_count += 1
-
-            # ✅ FIX 2: Only react after several missed frames, and tightened margin (0.10→0.03)
             if self._crate_lost_count >= self._CRATE_LOST_THRESHOLD:
                 if (self.current_crate is not None
                         and self.current_crate.distance <= self.alignment_dist + 0.03):
@@ -311,188 +381,140 @@ class TaskManager(Node):
                     self.transition_to(self.STATE_GRIPPING_CRATE)
                 else:
                     self.stop_robot()
-                    self.get_logger().warn("Lost sight of crate during alignment — searching again")
+                    self.get_logger().warn("Lost crate during alignment — searching again")
                     self.transition_to(self.STATE_SEARCHING_CRATE)
             return
 
         self._crate_lost_count = 0
         crate = min(self.latest_crates, key=lambda c: c.distance)
-        self.current_crate = crate  # keep current_crate updated for lost-crate check
+        self.current_crate  = crate
         distance_error = crate.distance - self.alignment_dist
         angle_error    = abs(crate.angle)
 
         self.get_logger().info(
-            f"Aligning: dist={crate.distance:.3f}m (want {self.alignment_dist:.2f}m)  "
-            f"angle={crate.angle:.1f}°",
-            throttle_duration_sec=1.0
-        )
+            f"Aligning: dist={crate.distance:.3f}m  angle={crate.angle:.1f}°",
+            throttle_duration_sec=1.0)
 
-        # Crate is at the perfect grab position — close gripper
         if abs(distance_error) < self.alignment_tol and angle_error < self.angle_tol:
             self.stop_robot()
-            self.get_logger().info("Crate in grip position — closing gripper")
+            self.get_logger().info("In grip position — closing")
             self.transition_to(self.STATE_GRIPPING_CRATE)
             return
 
         cmd = Twist()
-        angle_rad = math.radians(crate.angle)
-
-        # ✅ FIX 1: Apply angle_sign here too
-        # ✅ FIX 3: Increased alignment angular speed (0.4→0.6, gain 1.5→2.0)
-        cmd.angular.z = max(-0.6, min(0.6, 2.0 * self.angle_sign * angle_rad))
-
-        # ✅ FIX 3: Increased fine approach speed (0.12→0.20 m/s)
+        cmd.angular.z = max(-0.6, min(0.6, 2.0 * self.angle_sign * math.radians(crate.angle)))
         if angle_error < 15.0:
             if distance_error > 0:
                 cmd.linear.x = max(0.05, min(0.20, 0.6 * distance_error))
             elif distance_error < -self.alignment_tol:
-                cmd.linear.x = -0.08  # back up slightly faster too
-
+                cmd.linear.x = -0.08
         self.cmd_vel_pub.publish(cmd)
 
     def handle_gripping_crate(self):
-        """
-        Gripper was open during approach. Now close it to grab the crate.
-        Fast-fail path: if gripper transitions closing→idle it closed fully
-        with no contact, meaning the crate was missed — blacklist and retry.
-        """
         if self._grip_start_time is None:
             self._grip_start_time = self.get_clock().now()
-            self._gripper_missed   = False
-            self.send_gripper_command('close')
+            self._gripper_missed  = False
+            self._gripper_close()
             self.get_logger().info("Gripper closing...")
             return
 
-        # Fast-fail: gripper closed completely without touching the crate
+        # Gripper loop detected closing→idle with no contact
         if self._gripper_missed:
             self._gripper_missed = False
-            self.get_logger().warn("Gripper closed with no contact — crate missed, blacklisting")
+            self.get_logger().warn("Grip missed — blacklisting crate")
             self._blacklist_current_crate()
-            self.send_gripper_command('open')
+            self._gripper_open()
             self.current_crate = None
             self.transition_to(self.STATE_SEARCHING_CRATE)
             return
 
         elapsed = (self.get_clock().now() - self._grip_start_time).nanoseconds / 1e9
 
-        if self.gripper_state == "gripping":
+        if self.gripper_state == 'gripping':
             self.get_logger().info("Crate gripped!")
             self.crates_collected += 1
-            self.get_logger().info(f"Crates collected: {self.crates_collected}/{self.max_crates}")
-            self.failed_crate_positions.clear()  # successful grip → reset blacklist
+            self.get_logger().info(f"Crates: {self.crates_collected}/{self.max_crates}")
+            self.failed_crate_positions.clear()
             self.transition_to(self.STATE_NAVIGATING_TO_DROPOFF)
 
-        elif self.gripper_state == "closing":
-            # ✅ FIX 3: Reduced timeout (3.0→2.0s) to move faster
-            if elapsed > 2.0:
-                self.get_logger().warn("Gripper close timeout — proceeding to dropoff")
-                self.crates_collected += 1
-                self.transition_to(self.STATE_NAVIGATING_TO_DROPOFF)
-
-        elif elapsed > 5.0:
-            # Gripper never even started closing (topic issue or controller not running)
-            self.get_logger().warn("Gripper did not respond at all — reopening and searching again")
+        elif elapsed > 8.0:
+            self.get_logger().warn("Gripper timeout — is the JointController plugin loaded?")
             self._blacklist_current_crate()
-            self.send_gripper_command('open')
+            self._gripper_open()
             self.current_crate = None
             self.transition_to(self.STATE_SEARCHING_CRATE)
 
-        else:
-            self.send_gripper_command('close')
-
     def handle_navigating_to_dropoff(self):
-        dropoff_x, dropoff_y, dropoff_yaw = None, None, 0.0
-        dropoff_name = "NEST"
-
-        valid_pantries = [p for p in self.latest_pantries if p.id != -1 and p.distance > 0.3]
-
-        if valid_pantries:
-            pantry = min(valid_pantries, key=lambda p: p.distance)
-            pantry_angle_rad = math.radians(pantry.angle)
-            dropoff_x = self.current_position.x + pantry.distance * math.cos(self.current_yaw + pantry_angle_rad)
-            dropoff_y = self.current_position.y + pantry.distance * math.sin(self.current_yaw + pantry_angle_rad)
-            dropoff_yaw = self.current_yaw + pantry_angle_rad
-            dropoff_name = f"PANTRY {pantry.id}"
-        else:
-            dropoff_x = self.home_position['x']
-            dropoff_y = self.home_position['y']
-            dropoff_yaw = 0.0
-
-        if not self.nav_goal_active:
-            self.get_logger().info(f"Navigating to {dropoff_name} at ({dropoff_x:.2f}, {dropoff_y:.2f})")
-            self.send_nav_goal(dropoff_x, dropoff_y, dropoff_yaw)
+        if not self._dropoff_nav_sent:
+            valid_pantries = [p for p in self.latest_pantries if p.id != -1 and p.distance > 0.3]
+            if valid_pantries:
+                pantry = min(valid_pantries, key=lambda p: p.distance)
+                a = math.radians(pantry.angle)
+                dx = self.current_position.x + pantry.distance * math.cos(self.current_yaw + a)
+                dy = self.current_position.y + pantry.distance * math.sin(self.current_yaw + a)
+                self._dropoff_name = f"PANTRY {pantry.id}"
+                self.send_nav_goal(dx, dy, self.current_yaw + a)
+            else:
+                self._dropoff_name = "NEST"
+                self.send_nav_goal(self.home_position['x'], self.home_position['y'], 0.0)
+            self.get_logger().info(f"Navigating to {self._dropoff_name}")
+            self._dropoff_nav_sent = True
             return
 
         if self.nav_goal_result is not None:
-            if self.nav_goal_result:
-                self.get_logger().info(f"Reached {dropoff_name}")
-                self.transition_to(self.STATE_RELEASING_CRATE)
-            else:
-                self.get_logger().warn(f"Failed to reach {dropoff_name}")
-                if dropoff_name != "NEST":
-                    self.latest_pantries = []
-                    self.nav_goal_active = False
-                    self.nav_goal_result = None
-                else:
-                    self.transition_to(self.STATE_RELEASING_CRATE)
+            self.get_logger().info(
+                f"{'Reached' if self.nav_goal_result else 'Failed to reach'} {self._dropoff_name}")
+            self.transition_to(self.STATE_RELEASING_CRATE)
 
     def handle_releasing_crate(self):
-        if self.gripper_state in ("gripping", "closing"):
-            self.send_gripper_command('open')
+        if self.gripper_state in ('gripping', 'closing'):
+            self._gripper_open()
             return
-        elif self.gripper_state == "opening":
+        if self.gripper_state == 'opening':
             return
+        self.get_logger().info("Crate released!")
+        if self.crates_collected >= self.max_crates:
+            self.transition_to(self.STATE_RETURNING_TO_NEST)
         else:
-            self.get_logger().info("Crate released!")
-            if self.crates_collected >= self.max_crates:
-                self.transition_to(self.STATE_RETURNING_TO_NEST)
-            else:
-                self.transition_to(self.STATE_SEARCHING_CRATE)
+            self.transition_to(self.STATE_SEARCHING_CRATE)
 
     def handle_returning_to_nest(self):
         if self.home_position is None:
             self.get_logger().error("No home position!")
             self.transition_to(self.STATE_FINISHED)
             return
-
-        if not self.nav_goal_active:
+        if not self._nest_nav_sent:
             self.get_logger().info("Returning to nest...")
             self.send_nav_goal(self.home_position['x'], self.home_position['y'], 0.0)
+            self._nest_nav_sent = True
             return
-
         if self.nav_goal_result is not None:
-            if self.nav_goal_result:
-                self.get_logger().info("Safely in nest!")
-            else:
-                self.get_logger().warn("Failed to reach nest")
+            self.get_logger().info(
+                "In nest!" if self.nav_goal_result else "Failed to reach nest")
             self.transition_to(self.STATE_FINISHED)
 
     def handle_finished(self):
         self.stop_robot()
+        self._pub_gripper_vel(0.0, 0.0)
         self.get_logger().info(
-            f"Match finished! Total crates collected: {self.crates_collected}",
-            throttle_duration_sec=5.0
-        )
+            f"Match finished! Crates collected: {self.crates_collected}",
+            throttle_duration_sec=5.0)
 
-    # ========================================================================
-    # HELPER FUNCTIONS
-    # ========================================================================
+    # =========================================================================
+    # HELPERS
+    # =========================================================================
 
     def _crate_world_pos(self, crate):
-        """Estimate world (x, y) of a crate from current robot pose."""
-        angle_rad = self.current_yaw + math.radians(crate.angle)
-        wx = self.current_position.x + crate.distance * math.cos(angle_rad)
-        wy = self.current_position.y + crate.distance * math.sin(angle_rad)
-        return wx, wy
+        a = self.current_yaw + math.radians(crate.angle)
+        return (self.current_position.x + crate.distance * math.cos(a),
+                self.current_position.y + crate.distance * math.sin(a))
 
     def _is_blacklisted(self, crate):
         if self.current_position is None:
             return False
         wx, wy = self._crate_world_pos(crate)
-        return any(
-            math.hypot(wx - fx, wy - fy) < self._BLACKLIST_RADIUS
-            for fx, fy in self.failed_crate_positions
-        )
+        return any(math.hypot(wx-fx, wy-fy) < self._BLACKLIST_RADIUS
+                   for fx, fy in self.failed_crate_positions)
 
     def _blacklist_current_crate(self):
         if self.current_crate is None or self.current_position is None:
@@ -500,68 +522,57 @@ class TaskManager(Node):
         wx, wy = self._crate_world_pos(self.current_crate)
         self.failed_crate_positions.append((wx, wy))
         self.get_logger().warn(
-            f"Blacklisted crate at world ({wx:.2f}, {wy:.2f}) "
-            f"[{len(self.failed_crate_positions)} blacklisted total]"
-        )
+            f"Blacklisted ({wx:.2f}, {wy:.2f}) [{len(self.failed_crate_positions)} total]")
 
     def transition_to(self, new_state):
         if new_state == self.state:
             return
         self.get_logger().info(f"State: {self.state} → {new_state}")
-        self.state = new_state
+        self.state              = new_state
         self.nav_goal_active    = False
         self.nav_goal_result    = None
         self.nav_goal_sent_time = None
-        self._crate_lost_count  = 0  # ✅ reset lost counter on every transition
-
+        self._crate_lost_count  = 0
+        self._dropoff_nav_sent  = False
+        self._nest_nav_sent     = False
         if new_state == self.STATE_GRIPPING_CRATE:
             self._grip_start_time = None
         if new_state == self.STATE_NAVIGATING_TO_CRATE:
-            self.send_gripper_command('open')
+            self._gripper_open()
 
     def send_nav_goal(self, x, y, yaw):
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose.header.frame_id = 'map'
-        goal_msg.pose.header.stamp = self.get_clock().now().to_msg()
-        goal_msg.pose.pose.position.x = x
-        goal_msg.pose.pose.position.y = y
-        qz = math.sin(yaw / 2)
-        qw = math.cos(yaw / 2)
-        goal_msg.pose.pose.orientation.z = qz
-        goal_msg.pose.pose.orientation.w = qw
-
+        goal = NavigateToPose.Goal()
+        goal.pose.header.frame_id = 'map'
+        goal.pose.header.stamp    = self.get_clock().now().to_msg()
+        goal.pose.pose.position.x = x
+        goal.pose.pose.position.y = y
+        goal.pose.pose.orientation.z = math.sin(yaw / 2)
+        goal.pose.pose.orientation.w = math.cos(yaw / 2)
         self.nav_goal_active    = True
         self.nav_goal_result    = None
         self.nav_goal_sent_time = self.get_clock().now()
+        self.get_logger().info(f"Nav goal → ({x:.2f}, {y:.2f}) yaw={math.degrees(yaw):.1f}°")
+        self.nav_client.send_goal_async(goal).add_done_callback(self._nav_goal_cb)
 
-        self.get_logger().info(f"Sending nav goal: ({x:.2f}, {y:.2f}), yaw={math.degrees(yaw):.1f}°")
-        future = self.nav_client.send_goal_async(goal_msg)
-        future.add_done_callback(self.nav_goal_response_callback)
-
-    def nav_goal_response_callback(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().warn("Navigation goal REJECTED")
+    def _nav_goal_cb(self, future):
+        handle = future.result()
+        if not handle.accepted:
+            self.get_logger().warn("Nav goal REJECTED")
             self.nav_goal_result = False
             self.nav_goal_active = False
             return
-        self.get_logger().info("Navigation goal accepted")
-        goal_handle.get_result_async().add_done_callback(self.nav_result_callback)
+        self.get_logger().info("Nav goal accepted")
+        handle.get_result_async().add_done_callback(self._nav_result_cb)
 
-    def nav_result_callback(self, future):
-        result = future.result()
+    def _nav_result_cb(self, future):
         self.nav_goal_active = False
+        result = future.result()
         if result.status == 4:
             self.get_logger().info("Navigation SUCCEEDED")
             self.nav_goal_result = True
         else:
             self.get_logger().warn(f"Navigation FAILED (status={result.status})")
             self.nav_goal_result = False
-
-    def send_gripper_command(self, command):
-        msg = String()
-        msg.data = command
-        self.gripper_cmd_pub.publish(msg)
 
     def stop_robot(self):
         self.cmd_vel_pub.publish(Twist())
@@ -583,7 +594,7 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info("Task Manager shutting down")
+        node.get_logger().info("Shutting down")
     finally:
         node.destroy_node()
         rclpy.shutdown()

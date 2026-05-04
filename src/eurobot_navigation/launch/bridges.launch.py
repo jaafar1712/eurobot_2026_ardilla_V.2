@@ -38,9 +38,9 @@ def generate_launch_description():
             '/world/eurobot_2026_arena/model/simple_robot/link/left_finger/sensor/left_finger_contact/contact@ros_gz_interfaces/msg/Contacts[ignition.msgs.Contacts',
             '/world/eurobot_2026_arena/model/simple_robot/link/right_finger/sensor/right_finger_contact/contact@ros_gz_interfaces/msg/Contacts[ignition.msgs.Contacts',
 
-            # Gripper joint position commands (ROS → Ignition)
-            '/model/simple_robot/joint/left_finger_joint/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double',
-            '/model/simple_robot/joint/right_finger_joint/cmd_pos@std_msgs/msg/Float64]ignition.msgs.Double',
+            # Gripper joint velocity commands (ROS → Ignition, Fortress only supports cmd_vel)
+            '/model/simple_robot/joint/left_finger_joint/cmd_vel@std_msgs/msg/Float64]ignition.msgs.Double',
+            '/model/simple_robot/joint/right_finger_joint/cmd_vel@std_msgs/msg/Float64]ignition.msgs.Double',
 
             # Remap joint state topic
             '--ros-args',
