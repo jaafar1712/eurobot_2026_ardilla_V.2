@@ -54,7 +54,7 @@ class GripperController(Node):
         # Position limits
         self.MIN_POS = -0.04  # Fully closed
         self.MAX_POS = 0.04   # Fully open
-        self.STEP = 0.01      # Movement increment
+        self.STEP = 0.02      # ⚡ Increased from 0.01 → 0.02 (2x faster movement)
         
         # Current positions (read from sensors)
         self.current_left = 0.0
@@ -70,7 +70,7 @@ class GripperController(Node):
         self.right_contact = False
 
         # ========== Control Timer ==========
-        self.create_timer(0.05, self.control_loop)  # 20 Hz
+        self.create_timer(0.02, self.control_loop)  # ⚡ Increased from 20 Hz → 50 Hz
 
         self.get_logger().info("="*60)
         self.get_logger().info("Gripper Controller Started")
@@ -139,7 +139,7 @@ class GripperController(Node):
     # ========== Control Loop ==========
 
     def control_loop(self):
-        """Main control loop - runs at 20 Hz"""
+        """Main control loop - runs at 50 Hz"""
         
         # Always publish current state
         state_msg = String()

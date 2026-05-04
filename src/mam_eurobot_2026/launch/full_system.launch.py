@@ -19,12 +19,10 @@ def generate_launch_description():
     models_path = os.path.join(pkg_share, 'models')
     urdf_path = os.path.join(pkg_share, 'models', 'simple_robot', 'simple_robot.urdf')
     world_path = os.path.join(pkg_share, 'worlds', 'arena_world.sdf')
-    gripper_yaml = os.path.join(pkg_share, 'models', 'simple_robot', 'gripper_controller.yaml')
     rviz_config = os.path.join(pkg_share, 'config', 'arena.rviz')
 
     # --- Environment ---
     set_resource_path    = SetEnvironmentVariable('IGN_GAZEBO_RESOURCE_PATH', models_path)
-    set_gripper_yaml     = SetEnvironmentVariable('GRIPPER_CONTROLLER_YAML', gripper_yaml)
     set_libgl_sw         = SetEnvironmentVariable('LIBGL_ALWAYS_SOFTWARE', '1')
     set_gallium_driver   = SetEnvironmentVariable('GALLIUM_DRIVER', 'llvmpipe')
     set_mesa_override    = SetEnvironmentVariable('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
@@ -59,27 +57,13 @@ def generate_launch_description():
         output='screen'
     )
 
-    # --- Controllers (t=5s, after Gazebo is up) ---
-    joint_state_broadcaster = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=[
-            'joint_state_broadcaster',
-            '--controller-manager', '/controller_manager',
-            '--controller-manager-timeout', '60'
-        ],
-        output='screen'
-    )
-
+    # --- Gripper controller (t=5s, after Gazebo bridges are up) ---
     gripper_controller = Node(
-        package='controller_manager',
-        executable='spawner',
-        arguments=[
-            'gripper_controller',
-            '--controller-manager', '/controller_manager',
-            '--controller-manager-timeout', '60'
-        ],
-        output='screen'
+        package='eurobot_navigation',
+        executable='gripper_controller',
+        name='gripper_controller',
+        output='screen',
+        parameters=[{'use_sim_time': True}]
     )
 
     # --- Navigation (t=5s) ---
@@ -138,7 +122,6 @@ def generate_launch_description():
     return LaunchDescription([
         # Environment
         set_resource_path,
-        set_gripper_yaml,
         set_libgl_sw,
         set_gallium_driver,
         set_mesa_override,
@@ -149,9 +132,8 @@ def generate_launch_description():
         navigation_bridges,
         rviz,
 
-        # t=5s: Controllers + scan_frame_fixer
+        # t=5s: Gripper controller + scan_frame_fixer
         TimerAction(period=5.0, actions=[
-            joint_state_broadcaster,
             gripper_controller,
             scan_frame_fixer,
         ]),
