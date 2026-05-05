@@ -620,39 +620,21 @@
     <plugin filename="libignition-gazebo-contact-system.so"
         name="ignition::gazebo::systems::Contact">
     </plugin>
-    <!-- ====================== ROS2_CONTROL DEFINITION ====================== -->
-    <ros2_control name="GripperSystem" type="system">
-    <hardware>
-    <plugin>ign_ros2_control/IgnitionSystem</plugin>
-    </hardware>
-  
-    <joint name="left_finger_joint">
-    <command_interface name="position">
-      <param name="min">-0.04</param>
-      <param name="max">0.04</param>
-    </command_interface>
-    <state_interface name="position"/>
-    <state_interface name="velocity"/>
-    <state_interface name="effort"/>
-    </joint>
-  
-    <joint name="right_finger_joint">
-    <command_interface name="position">
-      <param name="min">-0.04</param>
-      <param name="max">0.04</param>
-    </command_interface>
-    <state_interface name="position"/>
-    <state_interface name="velocity"/>
-    <state_interface name="effort"/>
-  </joint>
-  </ros2_control>
+    <!-- ====================== GRIPPER JOINT CONTROLLERS ====================== -->
+    <!-- Ignition Fortress JointController: velocity mode only              -->
+    <!-- Topic: /model/simple_robot/joint/left_finger_joint/cmd_vel (Float64) -->
+    <!-- Position control is implemented via PID in the ROS2 gripper_controller node -->
+    <plugin filename="libignition-gazebo-joint-controller-system.so"
+            name="ignition::gazebo::systems::JointController">
+      <joint_name>left_finger_joint</joint_name>
+      <use_force_commands>false</use_force_commands>
+    </plugin>
 
-<!-- ====================== IGN_ROS2_CONTROL PLUGIN ====================== -->
-<plugin
-  filename="libign_ros2_control-system.so"
-  name="ign_ros2_control::IgnitionROS2ControlPlugin">
-  <parameters>$ENV{GRIPPER_CONTROLLER_YAML}</parameters>
-</plugin>
+    <plugin filename="libignition-gazebo-joint-controller-system.so"
+            name="ignition::gazebo::systems::JointController">
+      <joint_name>right_finger_joint</joint_name>
+      <use_force_commands>false</use_force_commands>
+    </plugin>
    
   </model>
 </sdf>
