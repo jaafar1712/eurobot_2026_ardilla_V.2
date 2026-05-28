@@ -1,4 +1,4 @@
-# Eurobot 2026 — Ardilla V.2
+# Eurobot 2026 — Mechanuts V.2
 
 Autonomous ROS2 robot stack for the [Eurobot 2026](https://www.eurobot.org/) competition, developed by the MAM (Master's in Advanced Mechatronics) team. The robot autonomously detects, collects, and delivers colored crates to pantry drop-off zones within a 100-second match, using SLAM, Nav2 navigation, ArUco-based perception, and a contact-aware gripper.
 
